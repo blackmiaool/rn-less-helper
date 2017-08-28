@@ -2,7 +2,7 @@
     "name": "rn-less-helper",
     "displayName": "rn-less-helper",
     "description": "rn-less's helper",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "publisher": "blackmiaool",
     "engines": {
         "vscode": "^1.13.0"
