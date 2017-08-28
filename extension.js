@@ -105,7 +105,6 @@ class RnLessDefinitionProvider {
                             if(!found){
                                 notFound++;
                                 if(notFound===lessFiles.length){
-                                    console.log('reject',notFound);
                                     reject();
                                 }
                             }
@@ -125,11 +124,8 @@ class RnLessDefinitionProvider {
                 }
             });
 
-            console.log('lessFiles', lessFiles);
             // const folder=document.uri.fsPath.split('\\\/');
             // folder.pop();
-
-            console.log(currentClass, currWord, lessFiles);
         } catch (e) {
             console.log(e);
         }
