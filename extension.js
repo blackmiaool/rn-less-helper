@@ -20,14 +20,14 @@ const postcss = require('postcss');
 function activate(context) {
     const rootPath = vscode.workspace.rootPath;
     const provider = new RnLessDefinitionProvider();
-    vscode.languages.registerHoverProvider(['javascriptreact'],provider);
+    vscode.languages.registerHoverProvider(['javascriptreact'], provider);
     vscode.languages.registerDefinitionProvider(['javascriptreact'], provider);
 
 }
 exports.activate = activate;
 
 // this method is called when your extension is deactivated
-function deactivate() {}
+function deactivate() { }
 exports.deactivate = deactivate;
 
 
@@ -36,9 +36,23 @@ class RnLessDefinitionProvider {
         // this.generateDefinitionMap();
     }
     async provideHover(document, position, token) {
+        const currWordRange = document.getWordRangeAtPosition(position);
+        const currWord = document.getText(currWordRange);
+        if (!currWordRange) {
+            return;
+        }
         const definition = await this.provideDefinition(document, position, token);
-        const space=definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
-        return new vscode.Hover([{language:'less',value:definition.raw.split("\n"+space).join('\n')}]);
+        // const space = definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
+        // return new vscode.Hover([{ language: 'less', value: definition.raw.split("\n" + space).join('\n') }]);
+        let hover=('\n'+definition.hover)
+            .replace(/\n$/,'')
+            .replace(/\n/g,"\n    ")
+            .replace(/\n\s*\n/,'\n')
+            .replace(/^\n/,'');
+        hover=`.${currWord} {
+${hover}
+}`;
+        return new vscode.Hover([{ language: 'css', value: hover }]);
     }
     provideDefinition(document, position, token) {
         const currWordRange = document.getWordRangeAtPosition(position);
@@ -67,20 +81,20 @@ class RnLessDefinitionProvider {
             }
             const _definitionMap = new Map();
             const folderPath = Path.dirname(document.uri.fsPath);
-            return new Promise(function (resolve,reject) {
-                let notFound=0;
+            return new Promise(function (resolve, reject) {
+                let notFound = 0;
                 lessFiles.forEach((path) => {
                     path = path.slice(1, path.length - 1);
                     path = Path.resolve(folderPath, path);
                     fs.readFile(path, function (err, data) {
-                        if(err){
+                        if (err) {
                             reject(e);
-                            return ;
+                            return;
                         }
                         const code = data.toString();
-                        
+
                         postcss().process(code).then(result => {
-                            let found=false;
+                            let found = false;
                             result.root.nodes.forEach((node) => {
                                 if (node.selector == currentClass) {
                                     node.walkRules(rule => {
@@ -91,10 +105,18 @@ class RnLessDefinitionProvider {
                                         if (selectors) {
                                             selectors.forEach(selector => {
                                                 if (selector.slice(1) === currWord) {
-                                                    const definition=getDefinition(Uri.file(path), source);
-                                                    definition.raw=rule.toString();
+                                                    const definition = getDefinition(Uri.file(path), source);
+                                                    let hover = '';
+                                                    rule.nodes.forEach((node)=>{
+                                                        if(node.type==='decl'){
+                                                            hover += node.toString();
+                                                            hover+=';\n';
+                                                        }
+                                                    });
+
+                                                    definition.hover = hover;
                                                     resolve(definition);
-                                                    found=true;
+                                                    found = true;
                                                 }
                                             });
                                         }
@@ -102,16 +124,16 @@ class RnLessDefinitionProvider {
                                     })
                                 }
                             });
-                            if(!found){
+                            if (!found) {
                                 notFound++;
-                                if(notFound===lessFiles.length){
+                                if (notFound === lessFiles.length) {
                                     reject();
                                 }
                             }
-                        }).catch(function(e){
+                        }).catch(function (e) {
                             reject(e);
                         });
-                        
+
                     });
                     return path;
                 });
