@@ -38,7 +38,7 @@ class RnLessDefinitionProvider {
     async provideHover(document, position, token) {
         const definition = await this.provideDefinition(document, position, token);
         const space=definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
-        return new vscode.Hover([{language:'less',value:definition.raw.split(space).join('')}]);
+        return new vscode.Hover([{language:'less',value:definition.raw.split("\n"+space).join('\n')}]);
     }
     provideDefinition(document, position, token) {
         const currWordRange = document.getWordRangeAtPosition(position);
