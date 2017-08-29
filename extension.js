@@ -75,7 +75,7 @@ ${hover}
             } else {
                 currentClass = currentClass[currentClass.length - 1].match(/^([$\w]+)/)[1];
             }
-            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less\1/g);
+            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less\.js\1/g);
             if (!lessFiles) {
                 return;
             }
