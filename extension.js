@@ -69,7 +69,7 @@ ${hover}
             }
             const codeBeforeWord = document.getText(new Range(new Position(0, 0), position));
             let currentClass = codeBeforeWord.match(/([$\w]+)\)\s*\nclass\s+([$\w]+)/g);
-
+            
             if (!currentClass) {
                 return;
             } else {
@@ -83,8 +83,9 @@ ${hover}
             const folderPath = Path.dirname(document.uri.fsPath);
             return new Promise(function (resolve, reject) {
                 let notFound = 0;
-                lessFiles.forEach((path) => {
+                lessFiles.forEach((path) => {                    
                     path = path.slice(1, path.length - 1);
+                    path=path.replace(/\.js/,'');
                     path = Path.resolve(folderPath, path);
                     fs.readFile(path, function (err, data) {
                         if (err) {
@@ -92,7 +93,6 @@ ${hover}
                             return;
                         }
                         const code = data.toString();
-
                         postcss().process(code).then(result => {
                             let found = false;
                             result.root.nodes.forEach((node) => {
