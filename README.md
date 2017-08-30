@@ -5,3 +5,8 @@ Extension for [rn-less](https://github.com/blackmiaool/rn-less).
 ## Features
 
 Go to definition, hover things.
+
+
+<p align="center">      
+    <img width="600" src="https://github.com/blackmiaool/rn-less-helper/blob/master/function.gif">  
+</p>
