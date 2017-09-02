@@ -2,7 +2,7 @@
     "name": "rn-less-helper",
     "displayName": "rn-less-helper",
     "description": "rn-less's helper",
-    "version": "0.0.10",
+    "version": "0.0.11",
     "publisher": "blackmiaool",
     "engines": {
         "vscode": "^1.13.0"
@@ -21,10 +21,12 @@
                 "title": "Expand rnless jsx tag"
             }
         ],
-        "keybindings": [{
-            "command": "rnLess.rnLessExpand",
-            "key": "ctrl+shift+r"
-        }]
+        "keybindings": [
+            {
+                "command": "rnLess.rnLessExpand",
+                "key": "ctrl+shift+r"
+            }
+        ]
     },
     "scripts": {
         "postinstall": "node ./node_modules/vscode/bin/install",
