@@ -14,7 +14,18 @@
         "onLanguage:javascriptreact"
     ],
     "main": "./extension",
-    "contributes": {},
+    "contributes": {
+        "commands": [
+            {
+                "command": "rnLess.rnLessExpand",
+                "title": "Expand rnless jsx tag"
+            }
+        ],
+        "keybindings": [{
+            "command": "rnLess.rnLessExpand",
+            "key": "ctrl+shift+r"
+        }]
+    },
     "scripts": {
         "postinstall": "node ./node_modules/vscode/bin/install",
         "test": "node ./node_modules/vscode/bin/test"

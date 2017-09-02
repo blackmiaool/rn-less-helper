@@ -23,6 +23,43 @@ function activate(context) {
     vscode.languages.registerHoverProvider(['javascriptreact'], provider);
     vscode.languages.registerDefinitionProvider(['javascriptreact'], provider);
 
+
+    const disposable = vscode.commands.registerCommand('rnLess.rnLessExpand', function () {
+        const editor = vscode.window.activeTextEditor;
+        
+        // check if there is no selection
+        if (editor.selection.isEmpty) {
+            // the Position object gives you the line and character where the cursor is
+            const position = editor.selection.active;
+            let lineText=editor.document.lineAt(position.line).text;
+            try{
+                const result=lineText.replace(/[^\s\t]+$/,function(result){        
+                    const [tag,...styles]=result.split(".");
+
+                    let styleText=""
+                    if(styles.length===1){
+                        styleText=` style="${styles}"`;
+                    }else if(styles.length>1){
+                        styleText=` style={${JSON.stringify(styles)}}`;
+                    }
+                    styleText=styleText.replace(/,"/g,", \"");
+                    const ret=`<${tag}${styleText}></${tag}>`;                    
+                    return ret;
+                });
+                editor.edit(function(edit){
+                    edit.replace(editor.document.lineAt(position.line).range,result);
+                }).then(()=>{
+                    vscode.commands.executeCommand("cursorEnd")
+                });
+            }catch(e){
+                console.log(e)
+            };
+            
+        }
+    });
+
+    context.subscriptions.push(disposable);
+
 }
 exports.activate = activate;
 
@@ -36,7 +73,7 @@ class RnLessDefinitionProvider {
         // this.generateDefinitionMap();
     }
     async provideHover(document, position, token) {
-        const currWordRange = document.getWordRangeAtPosition(position);
+        const currWordRange = document.getWordRangeAtPosition(position, RnLessDefinitionProvider.wordReg);
         const currWord = document.getText(currWordRange);
         if (!currWordRange) {
             return;
@@ -44,18 +81,18 @@ class RnLessDefinitionProvider {
         const definition = await this.provideDefinition(document, position, token);
         // const space = definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
         // return new vscode.Hover([{ language: 'less', value: definition.raw.split("\n" + space).join('\n') }]);
-        let hover=('\n'+definition.hover)
-            .replace(/\n$/,'')
-            .replace(/\n/g,"\n    ")
-            .replace(/\n\s*\n/,'\n')
-            .replace(/^\n/,'');
-        hover=`.${currWord} {
+        let hover = ('\n' + definition.hover)
+            .replace(/\n$/, '')
+            .replace(/\n/g, "\n    ")
+            .replace(/\n\s*\n/, '\n')
+            .replace(/^\n/, '');
+        hover = `.${currWord} {
 ${hover}
 }`;
         return new vscode.Hover([{ language: 'css', value: hover }]);
     }
     provideDefinition(document, position, token) {
-        const currWordRange = document.getWordRangeAtPosition(position);
+        const currWordRange = document.getWordRangeAtPosition(position, RnLessDefinitionProvider.wordReg);
         // Ensure the current word is valid
         if (!currWordRange) {
             return;
@@ -69,13 +106,13 @@ ${hover}
             }
             const codeBeforeWord = document.getText(new Range(new Position(0, 0), position));
             let currentClass = codeBeforeWord.match(/([$\w]+)\)\s*\nclass\s+([$\w]+)/g);
-            
+
             if (!currentClass) {
                 return;
             } else {
                 currentClass = currentClass[currentClass.length - 1].match(/^([$\w]+)/)[1];
             }
-            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less\.js\1/g);
+            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less(\.js)?\1/g);
             if (!lessFiles) {
                 return;
             }
@@ -83,9 +120,9 @@ ${hover}
             const folderPath = Path.dirname(document.uri.fsPath);
             return new Promise(function (resolve, reject) {
                 let notFound = 0;
-                lessFiles.forEach((path) => {                    
+                lessFiles.forEach((path) => {
                     path = path.slice(1, path.length - 1);
-                    path=path.replace(/\.js/,'');
+                    path = path.replace(/\.js/, '');
                     path = Path.resolve(folderPath, path);
                     fs.readFile(path, function (err, data) {
                         if (err) {
@@ -107,10 +144,10 @@ ${hover}
                                                 if (selector.slice(1) === currWord) {
                                                     const definition = getDefinition(Uri.file(path), source);
                                                     let hover = '';
-                                                    rule.nodes.forEach((node)=>{
-                                                        if(node.type==='decl'){
+                                                    rule.nodes.forEach((node) => {
+                                                        if (node.type === 'decl') {
                                                             hover += node.toString();
-                                                            hover+=';\n';
+                                                            hover += ';\n';
                                                         }
                                                     });
 
@@ -172,3 +209,4 @@ ${hover}
     //   });
     // }
 }
+RnLessDefinitionProvider.wordReg = /[\w$-]+/;
