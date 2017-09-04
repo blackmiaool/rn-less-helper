@@ -15,6 +15,7 @@ const {
 const Path = require('path');
 const fs = require('fs');
 const postcss = require('postcss');
+const { getInfo } = require("./parse-jsx");
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
@@ -26,35 +27,35 @@ function activate(context) {
 
     const disposable = vscode.commands.registerCommand('rnLess.rnLessExpand', function () {
         const editor = vscode.window.activeTextEditor;
-        
+
         // check if there is no selection
         if (editor.selection.isEmpty) {
             // the Position object gives you the line and character where the cursor is
             const position = editor.selection.active;
-            let lineText=editor.document.lineAt(position.line).text;
-            try{
-                const result=lineText.replace(/[^\s\t]+$/,function(result){        
-                    const [tag,...styles]=result.split(".");
+            let lineText = editor.document.lineAt(position.line).text;
+            try {
+                const result = lineText.replace(/[^\s\t]+$/, function (result) {
+                    const [tag, ...styles] = result.split(".");
 
-                    let styleText=""
-                    if(styles.length===1){
-                        styleText=` style="${styles}"`;
-                    }else if(styles.length>1){
-                        styleText=` style={${JSON.stringify(styles)}}`;
+                    let styleText = ""
+                    if (styles.length === 1) {
+                        styleText = ` style="${styles}"`;
+                    } else if (styles.length > 1) {
+                        styleText = ` style={${JSON.stringify(styles)}}`;
                     }
-                    styleText=styleText.replace(/,"/g,", \"");
-                    const ret=`<${tag}${styleText}></${tag}>`;                    
+                    styleText = styleText.replace(/,"/g, ", \"");
+                    const ret = `<${tag}${styleText}></${tag}>`;
                     return ret;
                 });
-                editor.edit(function(edit){
-                    edit.replace(editor.document.lineAt(position.line).range,result);
-                }).then(()=>{
+                editor.edit(function (edit) {
+                    edit.replace(editor.document.lineAt(position.line).range, result);
+                }).then(() => {
                     vscode.commands.executeCommand("cursorEnd")
                 });
-            }catch(e){
+            } catch (e) {
                 console.log(e)
             };
-            
+
         }
     });
 
@@ -67,18 +68,94 @@ exports.activate = activate;
 function deactivate() { }
 exports.deactivate = deactivate;
 
+function lessGetPosition(result, styleName, selectorName) {
+    let target;
+    result.root.nodes.some((node) => {
+        if (node.selector == styleName) {
+            node.walkRules(rule => {
+                const {
+                    selectors,
+                    source
+                } = rule;
+                if (selectors) {
+                    const found = selectors.some(selector => {
+                        if (selector.slice(1) === selectorName) {
+                            return true;
+                        }
+                    });
+                    if (found) {
+                        target = rule;
+                    }
+                }
 
+            });
+            if (target) {
+                return true;
+            }
+        }
+    });
+    return target;
+}
 class RnLessDefinitionProvider {
     constructor() {
         // this.generateDefinitionMap();
     }
     async provideHover(document, position, token) {
         const currWordRange = document.getWordRangeAtPosition(position, RnLessDefinitionProvider.wordReg);
-        const currWord = document.getText(currWordRange);
         if (!currWordRange) {
             return;
         }
-        const definition = await this.provideDefinition(document, position, token);
+        const currWord = document.getText(currWordRange);
+        
+        // vscode.window.showQuickPick(["a", "b", "c"])
+        let definition;
+        try{
+            definition=await this.provideDefinition(document, position, token);
+        }catch(e){
+            if(!e){
+                return ;
+            }        
+            try{
+                const styleStack=e.styleStack;
+                const styleName=e.styleName;
+                const post=e.postcss;
+                styleStack.shift();
+                let selectorArr=[];
+                styleStack.forEach((v)=>{
+                    if(Array.isArray(v)){
+                        selectorArr=selectorArr.concat(v);
+                    }else{
+                        selectorArr.push(v);
+                    }
+                });
+                selectorArr=selectorArr.filter((selector)=>{
+                    return lessGetPosition(post,styleName,selector);
+                });
+                selectorArr=selectorArr.map((v)=>{
+                    return `.${v}`;
+                });
+                console.log('selectorArr',selectorArr);
+                selectorArr.push(styleName);
+                selectorArr=selectorArr.map((v)=>{
+                    return `${v} > .${currWord}`;
+                });
+                vscode.window.showQuickPick(selectorArr,{
+                    placeHolder:`Select a position to insert your style: ${currWord}`
+                }).then((select)=>{
+                    console.log(select)
+                });
+                // const pick=selectorArr.map((selector)=>{
+                //     
+                // });
+            }   catch(e) {
+                console.log(e)
+            }
+            
+        }
+        if(!definition){
+            return ;
+        }
+        console.log('definition',definition)
         // const space = definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
         // return new vscode.Hover([{ language: 'less', value: definition.raw.split("\n" + space).join('\n') }]);
         let hover = ('\n' + definition.hover)
@@ -99,19 +176,20 @@ ${hover}
         }
         try {
             let lineText = document.lineAt(position.line).text;
-            const currWord = document.getText(currWordRange);
+            const className = document.getText(currWordRange);
             const currWordBig = document.getText(new Range(currWordRange.start.translate(0, -1), currWordRange.end.translate(0, 1)));
-            if (currWordBig !== `"${currWord}"` && currWordBig !== `'${currWord}'`) {
+            if (currWordBig !== `"${className}"` && currWordBig !== `'${className}'`) {
                 return; //not a string
             }
             const codeBeforeWord = document.getText(new Range(new Position(0, 0), position));
-            let currentClass = codeBeforeWord.match(/([$\w]+)\)\s*\nclass\s+([$\w]+)/g);
-
-            if (!currentClass) {
+            // console.log('codeBeforeWord', codeBeforeWord.length)
+            const date = Date.now();
+            const codeInfo = getInfo(document.getText(new Range(new Position(0, 0), new Position(1e6, 1e6))), codeBeforeWord.length);
+            // console.log(Date.now() - date);
+            if (!codeInfo) {
                 return;
-            } else {
-                currentClass = currentClass[currentClass.length - 1].match(/^([$\w]+)/)[1];
             }
+            let styleName = codeInfo.styleName;
             let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less(\.js)?\1/g);
             if (!lessFiles) {
                 return;
@@ -126,49 +204,36 @@ ${hover}
                     path = Path.resolve(folderPath, path);
                     fs.readFile(path, function (err, data) {
                         if (err) {
-                            reject(e);
+                            console.log(err);
+                            reject();
                             return;
                         }
                         const code = data.toString();
+
                         postcss().process(code).then(result => {
-                            let found = false;
-                            result.root.nodes.forEach((node) => {
-                                if (node.selector == currentClass) {
-                                    node.walkRules(rule => {
-                                        const {
-                                            selectors,
-                                            source
-                                        } = rule;
-                                        if (selectors) {
-                                            selectors.forEach(selector => {
-                                                if (selector.slice(1) === currWord) {
-                                                    const definition = getDefinition(Uri.file(path), source);
-                                                    let hover = '';
-                                                    rule.nodes.forEach((node) => {
-                                                        if (node.type === 'decl') {
-                                                            hover += node.toString();
-                                                            hover += ';\n';
-                                                        }
-                                                    });
+                            const rule = lessGetPosition(result,styleName,className);
+                            if (rule) {
+                                const definition = getDefinition(Uri.file(path), rule.source);
+                                let hover = '';
+                                rule.nodes.forEach((node) => {
+                                    if (node.type === 'decl') {
+                                        hover += node.toString();
+                                        hover += ';\n';
+                                    }
+                                });
 
-                                                    definition.hover = hover;
-                                                    resolve(definition);
-                                                    found = true;
-                                                }
-                                            });
-                                        }
-
-                                    })
-                                }
-                            });
-                            if (!found) {
+                                definition.hover = hover;
+                                resolve(definition);
+                            } else {
                                 notFound++;
                                 if (notFound === lessFiles.length) {
-                                    reject();
+                                    codeInfo.postcss=result;
+                                    reject(codeInfo);
                                 }
                             }
                         }).catch(function (e) {
-                            reject(e);
+                            console.log(e);
+                            reject();
                         });
 
                     });
@@ -182,31 +247,9 @@ ${hover}
                     return new Location(path, new Range(start, end));
                 }
             });
-
-            // const folder=document.uri.fsPath.split('\\\/');
-            // folder.pop();
         } catch (e) {
             console.log(e);
         }
-
-        //   const classAtPosition = '.' + this.getClassAtPosition(document, position, currWordRange, currWord);
-        //   if (this._definitionMap.has(classAtPosition)) {
-        //     return this._definitionMap.get(classAtPosition);
-        //   }
     }
-
-    // private isClassSelector(selector: string) {
-    //   return selector[0] === '.';
-    // }
-
-    // private getClassAtPosition(document: TextDocument, position: Position, currWordRange: Range, currWord: string): string {
-    //   const classes = _.trim(currWord, `"'`).split(' ');
-    //   const positionOffset = position.character - currWordRange.start.character;
-    //   let startOffset = 0;
-    //   return classes.find(c => {
-    //     startOffset += 1 + c.length;
-    //     return positionOffset <= startOffset;
-    //   });
-    // }
 }
 RnLessDefinitionProvider.wordReg = /[\w$-]+/;
