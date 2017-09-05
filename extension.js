@@ -10,7 +10,13 @@ const {
     Range,
     Location,
     Definition,
-    MarkedString
+    MarkedString,
+    QuickPickItem,
+    window,
+    TextEditorRevealType,
+    Selection,
+    WorkspaceEdit,
+    workspace,
 } = vscode;
 const Path = require('path');
 const fs = require('fs');
@@ -19,7 +25,7 @@ const { getInfo } = require("./parse-jsx");
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 function activate(context) {
-    const rootPath = vscode.workspace.rootPath;
+    const rootPath = workspace.rootPath;
     const provider = new RnLessDefinitionProvider();
     vscode.languages.registerHoverProvider(['javascriptreact'], provider);
     vscode.languages.registerDefinitionProvider(['javascriptreact'], provider);
@@ -71,7 +77,11 @@ exports.deactivate = deactivate;
 function lessGetPosition(result, styleName, selectorName) {
     let target;
     result.root.nodes.some((node) => {
-        if (node.selector == styleName) {
+        if (node.selector === styleName) {
+            if (!selectorName) {
+                target = node;
+                return true;
+            }
             node.walkRules(rule => {
                 const {
                     selectors,
@@ -96,9 +106,10 @@ function lessGetPosition(result, styleName, selectorName) {
     });
     return target;
 }
+
+
 class RnLessDefinitionProvider {
     constructor() {
-        // this.generateDefinitionMap();
     }
     async provideHover(document, position, token) {
         const currWordRange = document.getWordRangeAtPosition(position, RnLessDefinitionProvider.wordReg);
@@ -106,58 +117,73 @@ class RnLessDefinitionProvider {
             return;
         }
         const currWord = document.getText(currWordRange);
-        
-        // vscode.window.showQuickPick(["a", "b", "c"])
+
         let definition;
-        try{
-            definition=await this.provideDefinition(document, position, token);
-        }catch(e){
-            if(!e){
-                return ;
-            }        
-            try{
-                const styleStack=e.styleStack;
-                const styleName=e.styleName;
-                const post=e.postcss;
+        try {
+            definition = await this.provideDefinition(document, position, token);
+        } catch (e) {
+            if (!e) {
+                return;
+            }
+            try {
+                const styleStack = e.styleStack;
+                const styleName = e.styleName;
+                const post = e.postcss;
+                const postPath = e.postcssPath;
                 styleStack.shift();
-                let selectorArr=[];
-                styleStack.forEach((v)=>{
-                    if(Array.isArray(v)){
-                        selectorArr=selectorArr.concat(v);
-                    }else{
+                let selectorArr = [];
+                styleStack.forEach((v) => {
+                    if (Array.isArray(v)) {
+                        selectorArr = selectorArr.concat(v);
+                    } else {
                         selectorArr.push(v);
                     }
                 });
-                selectorArr=selectorArr.filter((selector)=>{
-                    return lessGetPosition(post,styleName,selector);
+                selectorArr = selectorArr.filter((selector) => {
+                    return lessGetPosition(post, styleName, selector);
                 });
-                selectorArr=selectorArr.map((v)=>{
+                selectorArr = selectorArr.map((v) => {
                     return `.${v}`;
                 });
-                console.log('selectorArr',selectorArr);
                 selectorArr.push(styleName);
-                selectorArr=selectorArr.map((v)=>{
-                    return `${v} > .${currWord}`;
+                selectorArr = selectorArr.map((v) => {
+                    return { label: `${v} > .${currWord}`, parent: v };
                 });
-                vscode.window.showQuickPick(selectorArr,{
-                    placeHolder:`Select a position to insert your style: ${currWord}`
-                }).then((select)=>{
-                    console.log(select)
+                vscode.window.showQuickPick(selectorArr, {
+                    placeHolder: `Select a position to insert your style: ${currWord}`
+                }).then((select) => {
+                    if (!select) {
+                        return;
+                    }
+                    workspace.openTextDocument(postPath).then((document) => {
+                        const code=document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
+                        postcss().process(code).then(result => {
+                            const parent=lessGetPosition(result, styleName, select.parent !== styleName && select.parent.slice(1));
+                            let indent = parent.source.start.column - 1;
+                            indent = " ".repeat(indent + 4);
+                            const four = "    ";
+                            window.showTextDocument(Uri.file(postPath), {
+
+                            }).then((editor) => {
+                                editor.edit(function (edit) {
+                                    edit.insert(new Position(parent.source.end.line - 2, 100000)
+                                        , `\n${indent}.${currWord}{\n${indent}${four}\n${indent}}`);
+                                }).then(() => {
+                                    editor.selection = new Selection(new Position(parent.source.end.line, 10000), new Position(parent.source.end.line, 10000));
+                                });
+                            });
+
+                        });
+                    });
                 });
-                // const pick=selectorArr.map((selector)=>{
-                //     
-                // });
-            }   catch(e) {
+            } catch (e) {
                 console.log(e)
             }
-            
+
         }
-        if(!definition){
-            return ;
+        if (!definition) {
+            return;
         }
-        console.log('definition',definition)
-        // const space = definition.raw.split('\n')[1].match(/\s+/)[0].slice(4);
-        // return new vscode.Hover([{ language: 'less', value: definition.raw.split("\n" + space).join('\n') }]);
         let hover = ('\n' + definition.hover)
             .replace(/\n$/, '')
             .replace(/\n/g, "\n    ")
@@ -182,10 +208,8 @@ ${hover}
                 return; //not a string
             }
             const codeBeforeWord = document.getText(new Range(new Position(0, 0), position));
-            // console.log('codeBeforeWord', codeBeforeWord.length)
             const date = Date.now();
             const codeInfo = getInfo(document.getText(new Range(new Position(0, 0), new Position(1e6, 1e6))), codeBeforeWord.length);
-            // console.log(Date.now() - date);
             if (!codeInfo) {
                 return;
             }
@@ -202,16 +226,11 @@ ${hover}
                     path = path.slice(1, path.length - 1);
                     path = path.replace(/\.js/, '');
                     path = Path.resolve(folderPath, path);
-                    fs.readFile(path, function (err, data) {
-                        if (err) {
-                            console.log(err);
-                            reject();
-                            return;
-                        }
-                        const code = data.toString();
-
+                    workspace.openTextDocument(path).then((document) => {
+                        const code=document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
+                        
                         postcss().process(code).then(result => {
-                            const rule = lessGetPosition(result,styleName,className);
+                            const rule = lessGetPosition(result, styleName, className);
                             if (rule) {
                                 const definition = getDefinition(Uri.file(path), rule.source);
                                 let hover = '';
@@ -227,7 +246,8 @@ ${hover}
                             } else {
                                 notFound++;
                                 if (notFound === lessFiles.length) {
-                                    codeInfo.postcss=result;
+                                    codeInfo.postcss = result;
+                                    codeInfo.postcssPath = path;
                                     reject(codeInfo);
                                 }
                             }
@@ -235,7 +255,6 @@ ${hover}
                             console.log(e);
                             reject();
                         });
-
                     });
                     return path;
                 });
