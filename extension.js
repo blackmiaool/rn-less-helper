@@ -214,7 +214,7 @@ ${hover}
                 return;
             }
             let styleName = codeInfo.styleName;
-            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.less(\.js)?\1/g);
+            let lessFiles = codeBeforeWord.match(/(["'])[^\1\n={}]+\.lessx?(\.js)?\1/g);
             if (!lessFiles) {
                 return;
             }
