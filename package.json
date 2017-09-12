@@ -2,7 +2,7 @@
     "name": "rn-less-helper",
     "displayName": "rn-less-helper",
     "description": "rn-less's helper",
-    "version": "0.0.17",
+    "version": "0.0.18",
     "publisher": "blackmiaool",
     "engines": {
         "vscode": "^1.13.0"
@@ -37,13 +37,13 @@
         "@types/node": "^6.0.40",
         "eslint": "^3.6.0",
         "mocha": "^2.3.3",
-        "postcss-less": "^1.1.0",
         "typescript": "^2.0.3",
         "vscode": "^1.0.0"
     },
     "dependencies": {
         "babel-traverse": "^6.26.0",
         "babylon": "^6.18.0",
-        "postcss": "^6.0.10"
+        "postcss": "^6.0.10",
+        "postcss-less": "^1.1.0"
     }
 }
