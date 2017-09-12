@@ -228,8 +228,8 @@ ${hover}
                     path = Path.resolve(folderPath, path);
                     workspace.openTextDocument(path).then((document) => {
                         const code=document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
-                        
-                        postcss().process(code).then(result => {
+                        const syntax = require('postcss-less');
+                        postcss().process(code,{ syntax: syntax }).then(result => {
                             const rule = lessGetPosition(result, styleName, className);
                             if (rule) {
                                 const definition = getDefinition(Uri.file(path), rule.source);
@@ -252,7 +252,7 @@ ${hover}
                                 }
                             }
                         }).catch(function (e) {
-                            console.log(e);
+                            console.log('postcss error',e);
                             reject();
                         });
                     });
