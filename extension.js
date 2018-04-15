@@ -21,6 +21,7 @@ const {
 const Path = require('path');
 const fs = require('fs');
 const postcss = require('postcss');
+const syntax = require('postcss-less');
 const { getInfo } = require("./parse-jsx");
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -130,6 +131,9 @@ class RnLessDefinitionProvider {
                 const styleName = e.styleName;
                 const post = e.postcss;
                 const postPath = e.postcssPath;
+                if (!styleStack.length) {
+                    return;
+                }
                 styleStack.shift();
                 let selectorArr = [];
                 styleStack.forEach((v) => {
@@ -156,9 +160,9 @@ class RnLessDefinitionProvider {
                         return;
                     }
                     workspace.openTextDocument(postPath).then((document) => {
-                        const code=document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
-                        postcss().process(code).then(result => {
-                            const parent=lessGetPosition(result, styleName, select.parent !== styleName && select.parent.slice(1));
+                        const code = document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
+                        postcss().process(code, { syntax: syntax }).then(result => {
+                            const parent = lessGetPosition(result, styleName, select.parent !== styleName && select.parent.slice(1));
                             let indent = parent.source.start.column - 1;
                             indent = " ".repeat(indent + 4);
                             const four = "    ";
@@ -227,9 +231,8 @@ ${hover}
                     path = path.replace(/\.js/, '');
                     path = Path.resolve(folderPath, path);
                     workspace.openTextDocument(path).then((document) => {
-                        const code=document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
-                        const syntax = require('postcss-less');
-                        postcss().process(code,{ syntax: syntax }).then(result => {
+                        const code = document.getText(new Range(new Position(0, 0), new Position(1e8, 1e8)));
+                        postcss().process(code, { syntax: syntax }).then(result => {
                             const rule = lessGetPosition(result, styleName, className);
                             if (rule) {
                                 const definition = getDefinition(Uri.file(path), rule.source);
@@ -252,7 +255,7 @@ ${hover}
                                 }
                             }
                         }).catch(function (e) {
-                            console.log('postcss error',e);
+                            console.log('postcss error', e);
                             reject();
                         });
                     });
